@@ -1,0 +1,31 @@
+[server]
+# Sirve static/ (tipografía DM Sans incluida en el repositorio).
+enableStaticServing = true
+
+[theme]
+base = "light"
+primaryColor = "#0A4393"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#EEF1F7"
+textColor = "#1B2433"
+linkColor = "#0A4393"
+borderColor = "#D6DEEB"
+baseRadius = "6px"
+buttonRadius = "999px"
+font = "DM Sans, sans-serif"
+headingFont = "DM Sans, sans-serif"
+
+[[theme.fontFaces]]
+family = "DM Sans"
+url = "app/static/fonts/DMSans-latin-wght.woff2"
+weight = "100 1000"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "DM Sans"
+url = "app/static/fonts/DMSans-latin-wght-italic.woff2"
+weight = "100 1000"
+style = "italic"
+
+[client]
+toolbarMode = "minimal"

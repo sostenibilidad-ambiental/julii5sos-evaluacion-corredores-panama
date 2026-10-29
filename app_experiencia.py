@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from io import BytesIO
 
+import altair as alt
 import ee
 import folium
 import requests
@@ -86,7 +87,7 @@ from reporte_cartografico import crear_mapa_conectividad, crear_mapa_fragmentaci
 
 if not st.session_state.get("_pagina_configurada"):
     st.set_page_config(
-        page_title="Preevaluación territorial y corredores | Panamá",
+        page_title="Visor CHCP | Preevaluación territorial y conectividad",
         page_icon=":material/map:",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -97,21 +98,24 @@ st.markdown(
     """
     <style>
     :root {
-        --institucional-verde: #00544d;
-        --institucional-verde-oscuro: #00403a;
-        --institucional-verde-acento: #76b72a;
-        --institucional-verde-claro: #eaf4f0;
-        --institucional-tinta: #00544d;
-        --institucional-suave: #356b61;
-        --institucional-borde: #b6d1c8;
-        --institucional-fondo: #f6faf8;
+        --institucional-verde: #0a4393;
+        --institucional-verde-oscuro: #062a5e;
+        --institucional-verde-acento: #77cc09;
+        --institucional-verde-claro: #eef1f7;
+        --institucional-tinta: #062a5e;
+        --institucional-suave: #566176;
+        --institucional-borde: #d6deeb;
+        --institucional-fondo: #f6f8fb;
+        --portal-amarillo: #fabc20;
     }
     .stApp {background: var(--institucional-fondo); color: var(--institucional-tinta);}
     html {color-scheme: light;}
     .block-container {
-        padding: 1rem 1.15rem 2.5rem;
-        max-width: none;
+        padding: 0 var(--g, .55rem) .85rem !important;
+        max-width: none !important;
     }
+    .block-container [data-testid="stVerticalBlock"] {gap: .55rem;}
+    .block-container [data-testid="stHorizontalBlock"] {gap: .6rem;}
     .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
     .stApp p, .stApp label, .stApp li, .stApp small, .stApp summary,
     .stApp legend, .stApp th, .stApp td,
@@ -174,18 +178,33 @@ st.markdown(
     }
     [data-testid="stSidebar"] {
         border-right: 1px solid var(--institucional-borde);
-        min-width: 350px;
-        max-width: 350px;
+        min-width: 315px;
+        max-width: 315px;
+        box-shadow: 6px 0 20px rgba(6,42,94,.05);
     }
-    [data-testid="stSidebar"] > div:first-child {background: #ffffff; padding-top: .75rem;}
+    [data-testid="stSidebar"] > div:first-child {background: #ffffff; padding-top: .35rem;}
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {gap: .45rem;}
+    [data-testid="stSidebar"] hr {margin: .35rem 0;}
     [data-testid="stSidebar"] * {overflow-wrap: anywhere;}
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {color: var(--institucional-verde);}
+    [data-testid="stSidebar"] [data-testid="stExpander"] {
+        margin-bottom:.35rem;border:1px solid var(--institucional-borde);
+        border-radius:6px;background:var(--institucional-verde-claro);
+    }
+    [data-testid="stSidebar"] [data-testid="stExpander"] details[open] {
+        background:#ffffff;
+    }
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
+        color:var(--institucional-verde)!important;font-weight:700;
+    }
     #MainMenu, footer {visibility: hidden;}
     iframe {max-width: 100% !important;}
     button, [role="button"] {min-height: 44px;}
     button:focus-visible, [role="button"]:focus-visible,
     input:focus-visible, select:focus-visible, textarea:focus-visible,
     .leyenda-info:focus-visible {
-        outline: 3px solid var(--institucional-verde);
+        outline: 3px solid var(--institucional-verde-acento);
         outline-offset: 2px;
     }
     .cabecera-app {
@@ -714,81 +733,93 @@ st.markdown(
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 1rem;
-        min-height: 66px;
-        margin: 0 0 .8rem;
-        padding: .72rem 1rem;
-        border: 1px solid var(--institucional-borde);
-        border-top: 4px solid var(--institucional-verde);
-        border-radius: .35rem;
-        background: #ffffff;
+        gap: .65rem;
+        min-height: 54px;
+        margin: 0 0 .3rem;
+        padding: .5rem .75rem;
+        border: 0;
+        border-bottom: 5px solid var(--institucional-verde-acento);
+        border-radius: 0;
+        background: linear-gradient(112deg, var(--institucional-verde) 0 78%, var(--institucional-verde-oscuro) 78%);
+        box-shadow: 0 8px 22px rgba(6,42,94,.12);
     }
     .visor-marca {min-width: 0;}
     .visor-marca small {
         display: block;
         margin-bottom: .12rem;
-        color: var(--institucional-suave);
-        font-size: .74rem;
+        color: #dce8f8;
+        font-size: .68rem;
         font-weight: 750;
         letter-spacing: .055em;
         text-transform: uppercase;
     }
     .visor-marca strong {
         display: block;
-        color: var(--institucional-verde);
-        font-size: clamp(1.08rem, 1.7vw, 1.45rem);
+        color: #ffffff;
+        font-size: clamp(1rem, 1.5vw, 1.28rem);
         line-height: 1.2;
     }
     .visor-contexto {
         display: flex;
         flex-wrap: wrap;
         justify-content: flex-end;
-        gap: .4rem;
+        gap: .3rem;
     }
     .visor-etiqueta {
         display: inline-flex;
         align-items: center;
-        min-height: 32px;
-        padding: .25rem .68rem;
-        border: 1px solid var(--institucional-borde);
+        min-height: 28px;
+        padding: .2rem .55rem;
+        border: 1px solid rgba(255,255,255,.55);
         border-radius: 999px;
-        background: var(--institucional-verde-claro);
-        color: var(--institucional-verde);
-        font-size: .82rem;
+        background: rgba(255,255,255,.1);
+        color: #ffffff;
+        font-size: .76rem;
         font-weight: 700;
         white-space: nowrap;
     }
-    .panel-titulo {
-        margin: .15rem 0 .7rem;
-        color: var(--institucional-verde);
-        font-size: 1.05rem;
-        font-weight: 750;
-        letter-spacing: .01em;
-    }
+    .panel-titulo {margin:0;color:var(--institucional-verde);font-size:.78rem;font-weight:750;letter-spacing:.055em;text-transform:uppercase;}
     .panel-ayuda {
         margin: -.35rem 0 .8rem;
         color: var(--institucional-suave);
         font-size: .9rem;
         line-height: 1.5;
     }
+    .mapa-cabecera,
+    .resultado-cabecera {
+        margin:0 0 .4rem;
+        padding:.55rem .7rem;
+        border-bottom:5px solid var(--institucional-verde-acento);
+        background:var(--institucional-verde);
+        color:#ffffff;
+    }
+    .mapa-cabecera {background:linear-gradient(112deg,var(--institucional-verde) 0 82%,var(--institucional-verde-oscuro) 82%);}
+    .mapa-cabecera small,
+    .resultado-cabecera small {
+        display:block;margin-bottom:.18rem;color:#cfe0f5;font-size:.7rem;
+        font-weight:750;letter-spacing:.065em;text-transform:uppercase;
+    }
+    .mapa-cabecera strong,
+    .resultado-cabecera strong {display:block;color:#ffffff;font-size:1rem;line-height:1.2;}
+    .mapa-nota {margin:0 0 .35rem;padding:.35rem .5rem;border-left:4px solid var(--institucional-verde-acento);background:#f3f8e9;color:var(--institucional-suave);font-size:.8rem;line-height:1.35;}
     .dashboard-area {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1px;
-        margin: .25rem 0 .85rem;
+        margin: .15rem 0 .45rem;
         border: 1px solid var(--institucional-borde);
-        border-radius: .35rem;
+        border-radius: 6px;
         overflow: hidden;
         background: var(--institucional-borde);
     }
     .dashboard-area > div {
         min-width: 0;
-        padding: .68rem .75rem;
-        background: #ffffff;
+        padding: .48rem .55rem;
+        background: var(--institucional-verde-claro);
     }
     .dashboard-area small {
         display: block;
-        margin-bottom: .15rem;
+        margin-bottom: .08rem;
         color: var(--institucional-suave);
         font-size: .74rem;
         font-weight: 700;
@@ -798,70 +829,110 @@ st.markdown(
     .dashboard-area strong {
         display: block;
         color: var(--institucional-tinta);
-        line-height: 1.35;
+        line-height: 1.25;
+        font-size: .92rem;
         overflow-wrap: anywhere;
     }
     .dashboard-estado {
         margin: .65rem 0 .85rem;
         padding: .75rem .85rem;
         border-left: 4px solid var(--institucional-verde-acento);
-        background: #f4f9ee;
+        background: #f3f8e9;
         color: var(--institucional-tinta);
         font-size: .9rem;
         line-height: 1.5;
     }
     .dashboard-grafica-intro {
         margin: .15rem 0 .65rem;
-        padding: .62rem .72rem;
-        border-left: 4px solid var(--institucional-verde);
-        background: var(--institucional-verde-claro);
+        padding: .68rem .78rem;
+        border: 1px solid var(--institucional-borde);
+        border-left: 5px solid var(--institucional-verde-acento);
+        border-radius: .45rem;
+        background: linear-gradient(135deg, var(--institucional-verde-claro) 0%, #f4f9e9 100%);
         color: var(--institucional-tinta);
         font-size: .86rem;
         line-height: 1.45;
     }
+    .grafica-contextual-cabecera {
+        margin: .55rem 0 .35rem;
+        padding: .55rem .65rem;
+        border: 1px solid var(--institucional-borde);
+        border-left: 5px solid var(--institucional-verde-acento);
+        border-radius: 6px;
+        background: #ffffff;
+    }
+    .grafica-contextual-cabecera small {
+        display: block;
+        margin-bottom: .12rem;
+        color: var(--institucional-suave);
+        font-size: .7rem;
+        font-weight: 750;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+    }
+    .grafica-contextual-cabecera strong {
+        display: block;
+        color: var(--institucional-tinta);
+        font-size: .94rem;
+        line-height: 1.25;
+    }
+    .grafica-contextual-nota {
+        margin: -.1rem 0 .35rem;
+        color: var(--institucional-suave);
+        font-size: .78rem;
+        line-height: 1.35;
+    }
     .dashboard-dato-clave {
         margin: .55rem 0 .25rem;
-        padding: .55rem .68rem;
+        padding: .7rem .78rem;
         border: 1px solid var(--institucional-borde);
-        border-radius: .3rem;
-        background: #ffffff;
-        color: var(--institucional-suave);
-        font-size: .82rem;
-        line-height: 1.4;
+        border-left: 5px solid var(--institucional-verde-acento);
+        border-radius: .45rem;
+        background: #f4f9e9;
+        color: var(--institucional-tinta);
+        font-size: .86rem;
+        line-height: 1.45;
     }
     .dashboard-dato-clave b {color: var(--institucional-verde);}
     [data-testid="stVegaLiteChart"] {
-        padding: .2rem .15rem .1rem;
+        padding: .7rem .65rem .35rem;
         border: 1px solid var(--institucional-borde);
-        border-radius: .35rem;
+        border-radius: .55rem;
         background: #ffffff;
+        box-shadow: 0 8px 22px rgba(6,42,94,.08);
     }
     [data-testid="stMetric"] {
-        min-height: 104px;
-        padding: .72rem .8rem;
+        min-height: 88px;
+        padding: .55rem .65rem;
         border: 1px solid var(--institucional-borde);
-        border-radius: .35rem;
-        background: #ffffff;
+        border-radius: 6px;
+        background: var(--institucional-verde-claro);
     }
     [data-testid="stMetric"] [data-testid="stMetricLabel"] {font-weight: 650;}
     [data-testid="stTabs"] [data-baseweb="tab-list"] {
         gap: .15rem;
         border-bottom: 1px solid var(--institucional-borde);
     }
-    [data-testid="stTabs"] button[role="tab"] {min-height: 46px;}
+    [data-testid="stTabs"] button[role="tab"] {min-height: 42px;}
+    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        color: var(--institucional-verde) !important;
+        box-shadow: inset 0 -4px 0 var(--institucional-verde-acento);
+    }
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-color: var(--institucional-borde) !important;
         background: #ffffff;
+        border-radius: 6px !important;
     }
     iframe[title="streamlit_folium.st_folium"] {
         border: 1px solid var(--institucional-borde);
-        border-radius: .25rem;
-        background: #eef4f1;
+        border-radius: 6px;
+        background: var(--institucional-verde-claro);
+        box-shadow: 0 8px 24px rgba(6,42,94,.08);
     }
     @media (max-width: 760px) {
         .flujo-pasos, .contexto-analisis, .entregables, .resumen-principiante,
         .lectura-rapida, .recuperacion-error {grid-template-columns: 1fr 1fr;}
-        .block-container {padding: 3.5rem .75rem 2rem;}
+        .block-container {padding: 0 var(--g, .75rem) 2rem !important;}
         [data-testid="stSidebar"] {min-width: auto; max-width: none;}
         .cabecera-app {padding: 1.2rem;}
         .cabecera-app h1 {font-size: 2rem; line-height: 1.15;}
@@ -903,7 +974,28 @@ def secreto_opcional(nombre, predeterminado=None):
         return predeterminado
 
 
-APP_VERSION = "UX-3.1.0-MAPA-Y-GRAFICAS"
+APP_VERSION = "UX-5.0.0-PORTAL-MODELO"
+
+COLORES_FUENTES = {
+    "JRC TMF": "#1F8A70",
+    "Hansen GFC": "#E76F51",
+    "ESRI LULC": "#3A7CA5",
+    "GEDI": "#7A5195",
+    "NDVI": "#9BBF30",
+}
+COLORES_CAMBIOS = {
+    "Deforestación JRC": "#C73E3A",
+    "Degradación JRC": "#F2A541",
+    "Pérdida Hansen post-2020": "#E76F51",
+    "Salida de árboles ESRI": "#3A7CA5",
+    "Disminución NDVI": "#9BBF30",
+}
+COLORES_CONECTIVIDAD = {
+    "En corredores": "#2E7D5B",
+    "Bosque 2021": "#76B72A",
+    "Cercanos": "#2A9D8F",
+    "Separados": "#E76F51",
+}
 METHODOLOGY_VERSION = "MT-2026.15-NDVI-PONDERADO"
 PROYECTO_EE = secreto_opcional("EE_PROJECT", "ee-julissaguevaravega")
 FUENTE_BOSQUE_NOMBRE = "Bosque y otros usos"
@@ -2273,7 +2365,7 @@ def calcular_serie_fuente(
                 "Superficie clasificada cada año como deforestación o degradación. "
                 "Las dos series pertenecen a la misma fuente y sí pueden compararse."
             ),
-            "tipo": "lineas",
+            "tipo": "barras",
             "columnas": {
                 "Año": anios,
                 "Deforestación (ha)": [numero(resumen, f"def_{anio}") for anio in anios],
@@ -2334,7 +2426,7 @@ def calcular_serie_fuente(
                 "Superficie clasificada como árboles en cada edición anual. Cambios "
                 "pequeños pueden reflejar tanto cambios reales como diferencias de clasificación."
             ),
-            "tipo": "lineas",
+            "tipo": "barras",
             "columnas": {
                 "Año": anios,
                 "Cobertura arbórea (ha)": [
@@ -2362,7 +2454,7 @@ def calcular_serie_fuente(
                 "Promedio anual del NDVI calculado con Sentinel-2. Sirve como señal "
                 "corroborativa; nubes, estacionalidad y agua pueden afectar la lectura."
             ),
-            "tipo": "lineas",
+            "tipo": "barras",
             "columnas": {
                 "Año": anios,
                 "NDVI medio": [numero(resumen, f"ndvi_{anio}") for anio in anios],
@@ -2387,7 +2479,7 @@ def calcular_serie_fuente(
             "titulo": "Distribución de altura del dosel según GEDI",
             "descripcion": (
                 "GEDI no es una serie anual comparable. Por eso se muestra la distribución "
-                "de alturas disponibles y no una línea temporal artificial."
+                "de alturas disponibles y no una serie temporal artificial."
             ),
             "tipo": "barras",
             "columnas": normalizar_histograma_gedi(histograma),
@@ -3615,7 +3707,7 @@ def mostrar_barra_visor(contenido_modo):
         <header class="visor-barra" aria-label="Identificación del visor">
           <div class="visor-marca">
             <small>Cuenca Hidrográfica del Canal de Panamá</small>
-            <strong>Visor de preevaluación territorial y conectividad</strong>
+            <strong>Evidencia cartográfica y resultados</strong>
           </div>
           <div class="visor-contexto">
             <span class="visor-etiqueta">{html_lib.escape(contenido_modo['titulo'])}</span>
@@ -3775,6 +3867,11 @@ def construir_graficas_dashboard(resultados, modo_analisis):
                 },
                 "eje_x": "Categoría",
                 "eje_y": "Hectáreas",
+                "unidad": "ha",
+                "colores": [
+                    COLORES_CONECTIVIDAD["En corredores"],
+                    COLORES_CONECTIVIDAD["Bosque 2021"],
+                ],
             },
             "secundaria": {
                 "titulo": "Relación entre fragmentos",
@@ -3788,6 +3885,12 @@ def construir_graficas_dashboard(resultados, modo_analisis):
                 },
                 "eje_x": "Condición",
                 "eje_y": "Fragmentos",
+                "unidad": "fragmentos",
+                "decimales": 0,
+                "colores": [
+                    COLORES_CONECTIVIDAD["Cercanos"],
+                    COLORES_CONECTIVIDAD["Separados"],
+                ],
             },
             "clave": (
                 f"Se identificaron {total_fragmentos:,} fragmentos; "
@@ -3831,6 +3934,8 @@ def construir_graficas_dashboard(resultados, modo_analisis):
             "datos": {"Fuente": fuentes, "Aporte": valores_aporte},
             "eje_x": "Fuente",
             "eje_y": "Aporte",
+            "unidad": "puntos",
+            "colores": [COLORES_FUENTES[fuente] for fuente in fuentes],
         },
         "secundaria": {
             "titulo": "Superficie con indicios",
@@ -3841,9 +3946,486 @@ def construir_graficas_dashboard(resultados, modo_analisis):
             "datos": cambios,
             "eje_x": "Indicador",
             "eje_y": "Hectáreas",
+            "unidad": "ha",
+            "colores": [
+                COLORES_CAMBIOS[indicador] for indicador in cambios["Indicador"]
+            ],
         },
         "clave": f"{senales} de 5 fuentes aportan al índice de indicios.",
     }
+
+
+def crear_grafica_barras_color(grafica, altura=None):
+    """Construye barras horizontales, etiquetadas y con colores accesibles."""
+
+    eje_categoria = grafica["eje_x"]
+    eje_valor = grafica["eje_y"]
+    categorias = list(grafica["datos"].get(eje_categoria, []))
+    valores = [float(valor or 0) for valor in grafica["datos"].get(eje_valor, [])]
+    colores = list(grafica.get("colores") or ["#1F8A70"] * len(categorias))
+    if len(colores) < len(categorias):
+        colores.extend([colores[-1] if colores else "#1F8A70"] * (len(categorias) - len(colores)))
+    unidad = grafica.get("unidad", "")
+    decimales = int(grafica.get("decimales", 1))
+
+    def etiqueta_valor(valor):
+        numero_formateado = f"{valor:,.{decimales}f}"
+        if unidad == "puntos":
+            return f"{numero_formateado} pts"
+        if unidad:
+            return f"{numero_formateado} {unidad}"
+        return numero_formateado
+
+    filas = [
+        {
+            eje_categoria: categoria,
+            eje_valor: valor,
+            "Etiqueta": etiqueta_valor(valor),
+        }
+        for categoria, valor in zip(categorias, valores)
+    ]
+    maximo = max(valores, default=0)
+    dominio_maximo = max(1, maximo * 1.28)
+    altura_grafica = altura or max(180, min(310, 48 * max(1, len(categorias))))
+    datos_altair = alt.Data(values=filas)
+    escala_valores = alt.Scale(domain=[0, dominio_maximo], nice=False, zero=True)
+    eje_categorias = alt.Y(
+        f"{eje_categoria}:N",
+        sort=categorias,
+        title=None,
+        axis=alt.Axis(
+            domain=False,
+            ticks=False,
+            labelColor="#062A5E",
+            labelFontSize=12,
+            labelFontWeight=600,
+            labelLimit=178,
+            labelPadding=8,
+        ),
+    )
+    eje_valores = alt.X(
+        f"{eje_valor}:Q",
+        title=f"{eje_valor} ({unidad})" if unidad else eje_valor,
+        scale=escala_valores,
+        axis=alt.Axis(
+            domain=False,
+            tickColor="#D6DEEB",
+            gridColor="#E1E6EE",
+            gridOpacity=1,
+            labelColor="#566176",
+            labelFontSize=11,
+            titleColor="#566176",
+            titleFontSize=11,
+            titleFontWeight=600,
+            tickCount=4,
+        ),
+    )
+    informacion = [
+        alt.Tooltip(f"{eje_categoria}:N", title=eje_categoria),
+        alt.Tooltip(f"{eje_valor}:Q", title=eje_valor, format=",.2f"),
+    ]
+    barras = (
+        alt.Chart(datos_altair)
+        .mark_bar(cornerRadiusEnd=6, size=22)
+        .encode(
+            y=eje_categorias,
+            x=eje_valores,
+            color=alt.Color(
+                f"{eje_categoria}:N",
+                scale=alt.Scale(domain=categorias, range=colores[: len(categorias)]),
+                legend=None,
+            ),
+            tooltip=informacion,
+        )
+    )
+    etiquetas = (
+        alt.Chart(datos_altair)
+        .mark_text(
+            align="left",
+            baseline="middle",
+            dx=6,
+            color="#062A5E",
+            fontSize=11,
+            fontWeight=600,
+        )
+        .encode(
+            y=eje_categorias,
+            x=eje_valores,
+            text=alt.Text("Etiqueta:N"),
+            tooltip=informacion,
+        )
+    )
+    return (
+        (barras + etiquetas)
+        .properties(height=altura_grafica)
+        .configure_view(stroke=None)
+        .configure(background="#FFFFFF")
+    )
+
+
+def resolver_capa_contextual(modo_analisis, modo_comparador, capas_activas):
+    """Mantiene la gráfica alineada con la última evidencia activada en el mapa."""
+
+    comparadores = {
+        "JRC TMF": "Estado forestal JRC",
+        "ESRI LULC": "Uso y cobertura ESRI",
+        "NDVI Sentinel-2": "Vegetación NDVI",
+    }
+    if modo_comparador in comparadores:
+        return comparadores[modo_comparador]
+
+    opciones = list(dict.fromkeys(capas_activas))
+    if not opciones and modo_analisis == MODO_CORREDORES:
+        opciones = ["Conectividad y fragmentos"]
+    if not opciones:
+        return "Sectores para revisión"
+
+    clave_activas = f"capas_contextuales_anteriores_{modo_analisis}"
+    clave_elegida = f"capa_contextual_{modo_analisis}"
+    anteriores = set(st.session_state.get(clave_activas, []))
+    nuevas = [capa for capa in opciones if capa not in anteriores]
+    elegida_anterior = st.session_state.get(clave_elegida)
+    if nuevas:
+        elegida = nuevas[-1]
+    elif elegida_anterior in opciones:
+        elegida = elegida_anterior
+    else:
+        elegida = opciones[0]
+    st.session_state[clave_activas] = opciones
+    st.session_state[clave_elegida] = elegida
+    return elegida
+
+
+def configuracion_grafica_contextual(capa):
+    """Relaciona cada evidencia cartográfica con una gráfica interpretable."""
+
+    configuraciones = {
+        "Estado forestal JRC": {
+            "fuente": "JRC Tropical Moist Forest",
+            "series": ["Deforestación (ha)", "Degradación (ha)"],
+            "titulo": "Deforestación y degradación por año",
+            "descripcion": "Superficie anual clasificada por JRC TMF dentro del área analizada.",
+            "colores": ["#C73E3A", "#F2A541"],
+        },
+        "Deforestación JRC": {
+            "fuente": "JRC Tropical Moist Forest",
+            "series": ["Deforestación (ha)"],
+            "titulo": "Deforestación por año",
+            "descripcion": "Hectáreas clasificadas anualmente como deforestación por JRC TMF.",
+            "colores": [COLORES_CAMBIOS["Deforestación JRC"]],
+        },
+        "Degradación JRC": {
+            "fuente": "JRC Tropical Moist Forest",
+            "series": ["Degradación (ha)"],
+            "titulo": "Degradación por año",
+            "descripcion": "Hectáreas clasificadas anualmente como degradación por JRC TMF.",
+            "colores": [COLORES_CAMBIOS["Degradación JRC"]],
+        },
+        "Pérdida Hansen post-2020": {
+            "fuente": "Hansen Global Forest Change",
+            "series": ["Pérdida (ha)"],
+            "titulo": "Pérdida de cobertura arbórea por año",
+            "descripcion": "Hectáreas de pérdida registradas por Hansen desde 2021.",
+            "anio_min": 2021,
+            "colores": [COLORES_FUENTES["Hansen GFC"]],
+        },
+        "Pérdida Hansen 2001-2020": {
+            "fuente": "Hansen Global Forest Change",
+            "series": ["Pérdida (ha)"],
+            "titulo": "Pérdida histórica de cobertura arbórea",
+            "descripcion": "Hectáreas de pérdida anual registradas por Hansen entre 2001 y 2020.",
+            "anio_max": 2020,
+            "colores": [COLORES_FUENTES["Hansen GFC"]],
+        },
+        "Cobertura arbórea persistente": {
+            "fuente": "Hansen Global Forest Change",
+            "series": ["Pérdida (ha)"],
+            "titulo": "Pérdida anual de cobertura arbórea",
+            "descripcion": "Serie de pérdida que ayuda a interpretar la cobertura persistente mostrada en el mapa.",
+            "colores": [COLORES_FUENTES["Hansen GFC"]],
+        },
+        "Uso y cobertura ESRI": {
+            "fuente": "ESRI Land Use / Land Cover",
+            "series": ["Cobertura arbórea (ha)"],
+            "titulo": "Cobertura arbórea por año",
+            "descripcion": "Hectáreas clasificadas como árboles en cada edición anual de ESRI.",
+            "colores": [COLORES_FUENTES["ESRI LULC"]],
+        },
+        "Transiciones ESRI": {
+            "fuente": "ESRI Land Use / Land Cover",
+            "series": ["Cobertura arbórea (ha)"],
+            "titulo": "Cobertura arbórea por año",
+            "descripcion": "La serie anual aporta contexto para interpretar las transiciones de la clase árboles.",
+            "colores": [COLORES_FUENTES["ESRI LULC"]],
+        },
+        "ΔNDVI": {
+            "fuente": "Sentinel-2 · NDVI",
+            "series": ["NDVI medio"],
+            "titulo": "Vigor medio de la vegetación por año",
+            "descripcion": "Promedio anual del NDVI; se interpreta como señal corroborativa, no como cobertura.",
+            "colores": [COLORES_FUENTES["NDVI"]],
+        },
+        "Vegetación NDVI": {
+            "fuente": "Sentinel-2 · NDVI",
+            "series": ["NDVI medio"],
+            "titulo": "Vigor medio de la vegetación por año",
+            "descripcion": "Promedio anual del NDVI para comparar el vigor vegetal entre años.",
+            "colores": [COLORES_FUENTES["NDVI"]],
+        },
+        "Altura GEDI": {
+            "fuente": "GEDI · altura del dosel",
+            "series": ["Observaciones"],
+            "titulo": "Distribución de la altura del dosel",
+            "descripcion": "Número de observaciones disponibles por intervalo de altura; GEDI no es una serie anual.",
+            "colores": [COLORES_FUENTES["GEDI"]],
+        },
+    }
+    return configuraciones.get(capa)
+
+
+def crear_grafica_serie_barras(
+    grafica,
+    series=None,
+    colores=None,
+    anio_min=None,
+    anio_max=None,
+    altura=245,
+):
+    """Construye series temporales o distribuciones únicamente con barras."""
+
+    columnas = grafica["columnas"]
+    eje_x = next(iter(columnas))
+    series_disponibles = list(columnas)[1:]
+    series = [serie for serie in (series or series_disponibles) if serie in columnas]
+    if not series:
+        series = series_disponibles
+    valores_x = list(columnas.get(eje_x, []))
+    filas = []
+    periodos = []
+    for indice, valor_x in enumerate(valores_x):
+        try:
+            valor_numerico_x = float(valor_x)
+        except (TypeError, ValueError):
+            valor_numerico_x = None
+        if anio_min is not None and valor_numerico_x is not None and valor_numerico_x < anio_min:
+            continue
+        if anio_max is not None and valor_numerico_x is not None and valor_numerico_x > anio_max:
+            continue
+        periodo = str(int(valor_x)) if isinstance(valor_x, int) else str(valor_x)
+        periodos.append(periodo)
+        for serie in series:
+            valores_serie = columnas.get(serie, [])
+            valor = float(valores_serie[indice] or 0) if indice < len(valores_serie) else 0.0
+            filas.append({"Periodo": periodo, "Serie": serie, "Valor": valor})
+
+    colores = list(colores or ["#1F8A70"])
+    if len(colores) < len(series):
+        colores.extend([colores[-1]] * (len(series) - len(colores)))
+    if all("(ha)" in serie for serie in series):
+        titulo_eje = "Superficie (ha)"
+        formato_tooltip = ",.2f"
+    elif series == ["NDVI medio"]:
+        titulo_eje = "NDVI medio"
+        formato_tooltip = ".3f"
+    elif series == ["Observaciones"]:
+        titulo_eje = "Observaciones"
+        formato_tooltip = ",.0f"
+    else:
+        titulo_eje = "Valor"
+        formato_tooltip = ",.2f"
+
+    base = alt.Chart(alt.Data(values=filas)).mark_bar(
+        cornerRadiusTopLeft=3,
+        cornerRadiusTopRight=3,
+    )
+    codificacion = {
+        "x": alt.X(
+            "Periodo:N",
+            sort=list(dict.fromkeys(periodos)),
+            title=eje_x,
+            axis=alt.Axis(
+                labelAngle=-45 if len(set(periodos)) > 10 else 0,
+                labelOverlap="greedy",
+                labelColor="#566176",
+                labelFontSize=10,
+                titleColor="#566176",
+                titleFontSize=11,
+                tickColor="#D6DEEB",
+                domainColor="#D6DEEB",
+            ),
+        ),
+        "y": alt.Y(
+            "Valor:Q",
+            title=titulo_eje,
+            scale=alt.Scale(zero=True),
+            axis=alt.Axis(
+                gridColor="#E1E6EE",
+                domain=False,
+                labelColor="#566176",
+                labelFontSize=10,
+                titleColor="#566176",
+                titleFontSize=11,
+                tickCount=4,
+            ),
+        ),
+        "color": alt.Color(
+            "Serie:N",
+            scale=alt.Scale(domain=series, range=colores[: len(series)]),
+            legend=(
+                alt.Legend(
+                    orient="top",
+                    direction="horizontal",
+                    title=None,
+                    labelColor="#062A5E",
+                    labelFontSize=10,
+                )
+                if len(series) > 1
+                else None
+            ),
+        ),
+        "tooltip": [
+            alt.Tooltip("Periodo:N", title=eje_x),
+            alt.Tooltip("Serie:N", title="Indicador"),
+            alt.Tooltip("Valor:Q", title=titulo_eje, format=formato_tooltip),
+        ],
+    }
+    if len(series) > 1:
+        codificacion["xOffset"] = alt.XOffset("Serie:N", sort=series)
+    return (
+        base.encode(**codificacion)
+        .properties(height=altura)
+        .configure_view(stroke=None)
+        .configure(background="#FFFFFF")
+    )
+
+
+def filtrar_tabla_serie(grafica, series=None, anio_min=None, anio_max=None):
+    """Devuelve una tabla accesible con exactamente los valores visibles en la gráfica."""
+
+    columnas = grafica["columnas"]
+    eje_x = next(iter(columnas))
+    series = [
+        serie
+        for serie in (series or list(columnas)[1:])
+        if serie in columnas
+    ]
+    indices = []
+    for indice, valor_x in enumerate(columnas.get(eje_x, [])):
+        try:
+            valor_numerico_x = float(valor_x)
+        except (TypeError, ValueError):
+            valor_numerico_x = None
+        if anio_min is not None and valor_numerico_x is not None and valor_numerico_x < anio_min:
+            continue
+        if anio_max is not None and valor_numerico_x is not None and valor_numerico_x > anio_max:
+            continue
+        indices.append(indice)
+    return {
+        nombre: [valores[indice] for indice in indices if indice < len(valores)]
+        for nombre, valores in columnas.items()
+        if nombre == eje_x or nombre in series
+    }
+
+
+def mostrar_grafica_contextual_dashboard(
+    resultados,
+    modo_analisis,
+    capa_contextual,
+    tipo_area,
+    finca_id,
+    subcuenca_nombre,
+    geometria_geojson,
+):
+    """Muestra debajo del resultado la gráfica vinculada con la evidencia activa."""
+
+    etiqueta_capa = capa_contextual or "Resumen del resultado"
+    st.markdown(
+        '<div class="grafica-contextual-cabecera"><small>Gráfica vinculada al mapa</small>'
+        f'<strong>{html_lib.escape(etiqueta_capa)}</strong></div>',
+        unsafe_allow_html=True,
+    )
+
+    if capa_contextual in (None, "Sectores para revisión"):
+        grafica = construir_graficas_dashboard(resultados, modo_analisis)["secundaria"]
+        st.markdown(
+            '<div class="grafica-contextual-nota">Resumen de las superficies detectadas '
+            'por los indicadores visibles en la preevaluación.</div>',
+            unsafe_allow_html=True,
+        )
+        st.altair_chart(
+            crear_grafica_barras_color(grafica, altura=220),
+            use_container_width=True,
+            theme=None,
+            key="grafica_contextual_resumen",
+        )
+        return
+
+    if capa_contextual == "Conectividad y fragmentos":
+        grafica = construir_graficas_dashboard(resultados, modo_analisis)["primaria"]
+        st.markdown(
+            f'<div class="grafica-contextual-nota">{html_lib.escape(grafica["descripcion"])}</div>',
+            unsafe_allow_html=True,
+        )
+        st.altair_chart(
+            crear_grafica_barras_color(grafica, altura=190),
+            use_container_width=True,
+            theme=None,
+            key="grafica_contextual_conectividad",
+        )
+        return
+
+    configuracion = configuracion_grafica_contextual(capa_contextual)
+    if not configuracion:
+        st.info("Esta evidencia se interpreta directamente en el mapa y en la lectura del resultado.")
+        return
+
+    st.markdown(
+        f'<div class="grafica-contextual-nota"><b>{html_lib.escape(configuracion["titulo"])}</b><br>'
+        f'{html_lib.escape(configuracion["descripcion"])}</div>',
+        unsafe_allow_html=True,
+    )
+    try:
+        with st.spinner(f"Preparando barras de {etiqueta_capa.lower()}..."):
+            grafica = calcular_serie_fuente(
+                tipo_area,
+                finca_id,
+                subcuenca_nombre,
+                geometria_geojson,
+                configuracion["fuente"],
+            )
+    except Exception as error:
+        st.warning(
+            "El mapa y el resultado permanecen disponibles, pero la gráfica de esta "
+            "evidencia no pudo prepararse en este momento."
+        )
+        with st.expander("Detalle técnico de la gráfica", expanded=False):
+            st.code(f"{type(error).__name__}: {error}")
+        return
+
+    st.altair_chart(
+        crear_grafica_serie_barras(
+            grafica,
+            series=configuracion.get("series"),
+            colores=configuracion.get("colores"),
+            anio_min=configuracion.get("anio_min"),
+            anio_max=configuracion.get("anio_max"),
+            altura=245,
+        ),
+        use_container_width=True,
+        theme=None,
+        key=f"grafica_contextual_{re.sub(r'[^a-z0-9]+', '_', capa_contextual.lower()).strip('_')}",
+    )
+    with st.expander("Ver valores de la gráfica", expanded=False):
+        st.dataframe(
+            filtrar_tabla_serie(
+                grafica,
+                series=configuracion.get("series"),
+                anio_min=configuracion.get("anio_min"),
+                anio_max=configuracion.get("anio_max"),
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
 
 
 def mostrar_graficas_dashboard(resultados, modo_analisis):
@@ -3868,11 +4450,11 @@ def mostrar_graficas_dashboard(resultados, modo_analisis):
         with pestana:
             st.markdown(f"**{grafica['titulo']}**")
             st.caption(grafica["descripcion"])
-            st.bar_chart(
-                grafica["datos"],
-                x=grafica["eje_x"],
-                y=grafica["eje_y"],
-                height=245,
+            st.altair_chart(
+                crear_grafica_barras_color(grafica),
+                use_container_width=True,
+                theme=None,
+                key=f"dashboard_{grafica['eje_x']}_{grafica['eje_y']}",
             )
             with st.expander("Ver valores de la gráfica", expanded=False):
                 st.dataframe(grafica["datos"], hide_index=True, use_container_width=True)
@@ -3910,7 +4492,7 @@ def mostrar_grafica_por_fuente(
         key="fuente_grafica_analisis",
         help=(
             "Cada gráfica conserva la unidad y el significado propios de su fuente. "
-            "No se mezclan indicadores incompatibles en una sola línea."
+            "No se mezclan indicadores incompatibles en una misma escala."
         ),
     )
     preparar = columna_accion.button(
@@ -3964,10 +4546,25 @@ def mostrar_grafica_por_fuente(
     columnas = grafica["columnas"]
     eje_x = next(iter(columnas))
     series = list(columnas)[1:]
-    if grafica["tipo"] == "barras":
-        st.bar_chart(columnas, x=eje_x, y=series, height=380)
-    else:
-        st.line_chart(columnas, x=eje_x, y=series, height=380)
+    paletas_fuente = {
+        "JRC Tropical Moist Forest": ["#C73E3A", "#F2A541"],
+        "Hansen Global Forest Change": [COLORES_FUENTES["Hansen GFC"]],
+        "ESRI Land Use / Land Cover": [COLORES_FUENTES["ESRI LULC"]],
+        "Sentinel-2 · NDVI": [COLORES_FUENTES["NDVI"]],
+        "GEDI · altura del dosel": [COLORES_FUENTES["GEDI"]],
+    }
+    colores_series = paletas_fuente.get(fuente, ["#1F8A70"])
+    st.altair_chart(
+        crear_grafica_serie_barras(
+            grafica,
+            series=series,
+            colores=(colores_series * len(series))[: len(series)],
+            altura=360,
+        ),
+        use_container_width=True,
+        theme=None,
+        key=f"grafica_detalle_{re.sub(r'[^a-z0-9]+', '_', fuente.lower()).strip('_')}",
+    )
     st.download_button(
         "Descargar datos de la gráfica",
         data=json.dumps(
@@ -4801,59 +5398,112 @@ def mostrar_resultados(
         grafico_jrc, grafico_esri = st.columns(2)
         with grafico_jrc:
             st.markdown("**Distribución del estado forestal JRC**")
-            st.bar_chart(
-                {
-                    "Clase": [
-                        "Bosque estable",
-                        "Degradación",
-                        "Deforestación",
-                        "Recuperación",
-                        "Agua",
-                        "Otra cobertura",
-                    ],
-                    "Hectáreas": [
-                        resultados["tmf_estable"],
-                        resultados["tmf_degradacion"],
-                        resultados["tmf_deforestacion"],
-                        resultados["tmf_recuperacion"],
-                        resultados["tmf_agua"],
-                        resultados["tmf_otra_cobertura"],
-                    ],
-                },
-                x="Clase",
-                y="Hectáreas",
-                height=280,
+            st.altair_chart(
+                crear_grafica_barras_color(
+                    {
+                        "eje_x": "Clase",
+                        "eje_y": "Hectáreas",
+                        "unidad": "ha",
+                        "colores": [
+                            "#2E7D32",
+                            "#F2A541",
+                            "#C73E3A",
+                            "#43AA8B",
+                            "#4D9DE0",
+                            "#A8B3B0",
+                        ],
+                        "datos": {
+                            "Clase": [
+                                "Bosque estable",
+                                "Degradación",
+                                "Deforestación",
+                                "Recuperación",
+                                "Agua",
+                                "Otra cobertura",
+                            ],
+                            "Hectáreas": [
+                                resultados["tmf_estable"],
+                                resultados["tmf_degradacion"],
+                                resultados["tmf_deforestacion"],
+                                resultados["tmf_recuperacion"],
+                                resultados["tmf_agua"],
+                                resultados["tmf_otra_cobertura"],
+                            ],
+                        },
+                    },
+                    altura=300,
+                ),
+                use_container_width=True,
+                theme=None,
+                key="detalle_jrc_barras_color",
             )
         with grafico_esri:
             st.markdown("**Cambios de la clase árboles ESRI**")
-            st.bar_chart(
-                {
-                    "Clase": ["Árboles estables", "Salida de árboles", "Ganancia de árboles"],
-                    "Hectáreas": [
-                        resultados["esri_estable"],
-                        resultados["esri_salida"],
-                        resultados["esri_ganancia"],
-                    ],
-                },
-                x="Clase",
-                y="Hectáreas",
-                height=280,
+            st.altair_chart(
+                crear_grafica_barras_color(
+                    {
+                        "eje_x": "Clase",
+                        "eje_y": "Hectáreas",
+                        "unidad": "ha",
+                        "colores": ["#2E7D32", "#E76F51", "#9BBF30"],
+                        "datos": {
+                            "Clase": [
+                                "Árboles estables",
+                                "Salida de árboles",
+                                "Ganancia de árboles",
+                            ],
+                            "Hectáreas": [
+                                resultados["esri_estable"],
+                                resultados["esri_salida"],
+                                resultados["esri_ganancia"],
+                            ],
+                        },
+                    },
+                    altura=220,
+                ),
+                use_container_width=True,
+                theme=None,
+                key="detalle_esri_barras_color",
             )
         st.markdown("**Comparación del aporte de las fuentes al índice**")
-        st.bar_chart(
-            {
-                "Fuente": ["JRC TMF", "Hansen GFC", "ESRI LULC", "GEDI", "NDVI"],
-                "Aporte": [
-                    aportes["tmf"],
-                    aportes["hansen"],
-                    aportes["esri"],
-                    aportes["gedi"],
-                    aportes["ndvi"],
-                ],
-            },
-            x="Fuente",
-            y="Aporte",
-            height=280,
+        st.altair_chart(
+            crear_grafica_barras_color(
+                {
+                    "eje_x": "Fuente",
+                    "eje_y": "Aporte",
+                    "unidad": "puntos",
+                    "colores": [
+                        COLORES_FUENTES[fuente]
+                        for fuente in [
+                            "JRC TMF",
+                            "Hansen GFC",
+                            "ESRI LULC",
+                            "GEDI",
+                            "NDVI",
+                        ]
+                    ],
+                    "datos": {
+                        "Fuente": [
+                            "JRC TMF",
+                            "Hansen GFC",
+                            "ESRI LULC",
+                            "GEDI",
+                            "NDVI",
+                        ],
+                        "Aporte": [
+                            aportes["tmf"],
+                            aportes["hansen"],
+                            aportes["esri"],
+                            aportes["gedi"],
+                            aportes["ndvi"],
+                        ],
+                    },
+                },
+                altura=270,
+            ),
+            use_container_width=True,
+            theme=None,
+            key="detalle_aportes_barras_color",
         )
         st.caption(
             "El gráfico representa aportes ponderados, no superficies comparables "
@@ -5780,9 +6430,18 @@ try:
                 )
 
         orden_capas_mapa = list(capas_activas)
-        capa_visible_inicial = capas_activas[0] if capas_activas else None
         if not capas_activas and not analiza_conectividad:
             st.sidebar.warning("Active al menos una capa territorial para mostrarla en el mapa.")
+
+    capa_contextual = resolver_capa_contextual(
+        modo_analisis,
+        modo_comparador,
+        capas_activas,
+    )
+    if modo_mapa == "Explorar capas":
+        capa_visible_inicial = (
+            capa_contextual if capa_contextual in capas_activas else None
+        )
 
     firma_analisis_actual = (
         METHODOLOGY_VERSION,
@@ -5871,16 +6530,20 @@ try:
         columna_panel = st.container(border=True)
         mapa_resultados_contenedor = None
     else:
-        st.markdown("### Visor cartográfico")
-        columna_mapa, columna_panel = st.columns([1.85, 1], gap="medium")
+        columna_mapa, columna_panel = st.columns([2.55, 1], gap="small")
         columna_mapa.markdown(
-            '<div class="panel-titulo">Mapa y evidencia espacial</div>',
+            '<div class="mapa-cabecera"><small>Centro del análisis</small>'
+            '<strong>Evidencia cartográfica</strong></div>',
             unsafe_allow_html=True,
         )
         mapa_resultados_contenedor = columna_mapa.container(border=True)
 
     with columna_panel:
-        st.markdown('<div class="panel-titulo">Área y resultado</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="resultado-cabecera"><small>Estadísticas del área</small>'
+            '<strong>Resultado de la preevaluación</strong></div>',
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f"""
             <div class="dashboard-area">
@@ -5919,11 +6582,16 @@ try:
                     )
         else:
             resultados = st.session_state["resultados_analisis"]
-            pestana_lectura, pestana_graficas = st.tabs(["Lectura", "Gráficas"])
-            with pestana_lectura:
-                mostrar_panel_dashboard(resultados, modo_analisis)
-            with pestana_graficas:
-                mostrar_graficas_dashboard(resultados, modo_analisis)
+            mostrar_panel_dashboard(resultados, modo_analisis)
+            mostrar_grafica_contextual_dashboard(
+                resultados=resultados,
+                modo_analisis=modo_analisis,
+                capa_contextual=capa_contextual,
+                tipo_area=tipo_area,
+                finca_id=finca_seleccionada,
+                subcuenca_nombre=subcuenca_seleccionada,
+                geometria_geojson=geometria_dibujada_json,
+            )
             st.button(
                 "Abrir detalle completo y descargas",
                 use_container_width=True,
@@ -6258,20 +6926,18 @@ try:
             )
         st.stop()
 
-    mapa_resultados_contenedor.divider()
-    mapa_resultados_contenedor.subheader(
-        "Evidencia para orientar la decisión" if analisis_actual else "Evidencia cartográfica"
-    )
     if analisis_actual:
         if modo_analisis == MODO_INTEGRAL:
-            mapa_resultados_contenedor.caption(
-                "Vista resumida preparada automáticamente. Muestra la evidencia principal "
-                "para ubicar dónde conviene revisar primero."
+            mapa_resultados_contenedor.markdown(
+                '<div class="mapa-nota">Vista resumida automática: muestra la evidencia '
+                'principal para ubicar dónde conviene revisar primero.</div>',
+                unsafe_allow_html=True,
             )
         else:
-            mapa_resultados_contenedor.caption(
-                "Use las capas del panel lateral para ubicar la evidencia. Los cálculos y "
-                "tablas detallados se mantienen cerrados hasta que decida consultarlos."
+            mapa_resultados_contenedor.markdown(
+                '<div class="mapa-nota">Active las capas del panel lateral para ubicar la '
+                'evidencia; el detalle técnico permanece disponible bajo demanda.</div>',
+                unsafe_allow_html=True,
             )
 
     mapa = folium.Map(

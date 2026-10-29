@@ -4,6 +4,75 @@ Este historial documenta la evolución de la aplicación UX. Las versiones sigue
 el formato `MAJOR.MINOR.PATCH`: una versión principal, mejoras compatibles y
 correcciones compatibles, respectivamente.
 
+## [5.0.0] - 2026-10-28 — portal con el diseño del modelo HTML
+
+- Reemplaza la cabecera y el selector segmentado por una barra azul a sangre con
+  identidad, fila utilitaria, menú en mayúsculas con chevrones verdes, subrayado verde
+  en la sección activa y botón píldora, como en el portal «Conectividad Panamá».
+- Nueva portada: héroe azul con corte diagonal, franjas blanca/verde/amarilla y arcos,
+  franja de especificaciones, cifras reales (fuentes, índice máximo, 22 corredores,
+  14 puntos críticos, 3 tramos CBM) y tarjetas «Módulo 1–3» para elegir el análisis.
+- Metodología con flujo circular de cinco pasos, tabla tipo registro de fuentes y
+  desplegables técnicos; Acerca del visor con listas de preguntas y cita de alcance.
+- Pie azul con identidad y atribución de fuentes en todas las páginas del portal.
+- Tipografía DM Sans incluida en `static/fonts` (OFL) y servida por Streamlit, sin
+  depender de Google Fonts; tema actualizado en `.streamlit/config.toml`.
+- Panel lateral del visor con banda azul alineada con la barra superior, títulos en
+  mayúsculas con subrayado verde y botones píldora. Se oculta la barra nativa de
+  Streamlit conservando el botón para reabrir el panel lateral.
+- Las métricas, la metodología y la lógica de Earth Engine no cambian.
+
+## [4.2.0] - 2026-10-28 — barras vinculadas con la evidencia
+
+- Sustituye las series de líneas por gráficas de barras con colores estables por fuente.
+- Añade en la columna derecha una gráfica contextual vinculada con la evidencia activa
+  del mapa, incluida la deforestación JRC en hectáreas por año.
+- Mantiene GEDI como distribución de alturas y conserva tablas de valores accesibles.
+
+## [4.1.0] - 2026-10-28 — evidencia cartográfica como foco
+
+- Oculta la cabecera institucional duplicada después de elegir una preevaluación y
+  conserva una sola barra compacta de contexto.
+- Reduce márgenes, separación vertical, ancho del panel lateral y altura de tarjetas
+  para mostrar más información útil sin perder legibilidad.
+- Amplía la relación del mapa frente al panel de resultados y alinea ambas columnas
+  con cabeceras visuales equivalentes.
+- Elimina el bloque introductorio grande que antecedía al mapa; la ayuda cartográfica
+  pasa a una nota breve y la evidencia aparece inmediatamente.
+- Compacta las estadísticas, métricas y pestañas del resultado para mantener una
+  lectura armónica junto al mapa.
+
+## [4.0.0] - 2026-10-27 — modelo visual basado en el portal HTML
+
+### Nueva variante en una rama independiente
+
+- Adapta la composición visual del HTML de referencia a la aplicación Streamlit sin
+  incorporar sus datos demostrativos, cálculos ni metodología.
+- Introduce una cabecera institucional azul, acento verde, panel lateral compacto,
+  mapa dominante y panel analítico a la derecha.
+- Conserva los análisis reales del repositorio: JRC TMF, Hansen GFC, ESRI LULC,
+  GEDI, Sentinel-2/NDVI, corredores, bosque 2021 y fragmentación.
+- Mantiene las tres rutas de preevaluación, la selección por finca, subcuenca,
+  polígono o cuenca completa, así como las gráficas, tablas, PDF y descargas.
+- Documenta la variante en `design-system/evaluaci-n-de-corredores-panam/pages/modelo-html.md`.
+- Se publica desde `version/4.0-modelo-html`; `main` y la aplicación actualmente
+  desplegada no se modifican.
+
+## [3.2.0] - 2026-10-27 — gráficas a color y lectura directa
+
+### Lenguaje visual inspirado en tableros cartográficos
+
+- Sustituye las barras monocromáticas del tablero por barras horizontales con un
+  color reconocible para cada fuente, indicador o condición de conectividad.
+- Añade el valor y la unidad directamente junto a cada barra, además del detalle al
+  pasar el cursor y la tabla accesible ya disponible.
+- Conserva una paleta estable para JRC, Hansen, ESRI, GEDI y NDVI, evitando depender
+  únicamente del color para comunicar el resultado.
+- Aplica el mismo tratamiento a las distribuciones JRC, los cambios ESRI y la
+  comparación de aportes del resultado completo.
+- Refuerza las tarjetas de gráficas con contraste, bordes y acentos institucionales
+  para que el panel sea más claro y visualmente activo.
+
 ## [3.1.0] - 2026-10-27 — mapa y gráficas en un mismo tablero
 
 ### Panel analítico inspirado en visores ambientales

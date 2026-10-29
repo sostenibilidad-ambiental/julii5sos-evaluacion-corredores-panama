@@ -40,7 +40,7 @@ class ModosInterfazTests(unittest.TestCase):
 
         self.assertFalse(app.exception)
         self.assertEqual(
-            [boton.label for boton in app.button],
+            [boton.label for boton in app.button if boton.label.startswith("Elegir")],
             [
                 "Elegir preevaluación territorial",
                 "Elegir corredores y conectividad",
@@ -77,22 +77,49 @@ class ModosInterfazTests(unittest.TestCase):
         codigo = Path("app.py").read_text(encoding="utf-8")
 
         self.assertNotIn('SECCION_ANALISIS = "Análisis"', codigo)
-        bloque_navegacion = codigo.index('seccion_tablero = st.segmented_control(')
+        self.assertIn('st.segmented_control(', codigo)
+        bloque_navegacion = codigo.index('seccion_tablero = mostrar_navegacion()')
         bloque_modo = codigo.index('if modo_analisis is None:')
         bloque_aplicacion = codigo.index('APLICACION_ACTIVA =', bloque_modo)
 
         self.assertLess(bloque_navegacion, bloque_modo)
         self.assertLess(bloque_modo, bloque_aplicacion)
 
+    def test_la_portada_sigue_el_modelo_del_portal(self):
+        app = AppTest.from_file("app.py", default_timeout=30).run()
+
+        self.assertFalse(app.exception)
+        bloques = " ".join(bloque.value for bloque in app.markdown)
+        for texto in ("hero-cut", "class=\"meta\"", "class=\"figs\"", "Módulo 1", "class=\"foot\""):
+            self.assertIn(texto, bloques)
+        self.assertIn("Cómo funciona", [boton.label for boton in app.button])
+
     def test_el_analisis_se_presenta_como_tablero_cartografico(self):
         codigo = Path("app_experiencia.py").read_text(encoding="utf-8")
 
-        self.assertIn("Visor cartográfico", codigo)
-        self.assertIn("Mapa y evidencia espacial", codigo)
-        self.assertIn("Área y resultado", codigo)
-        self.assertIn("Lectura", codigo)
-        self.assertIn("Gráficas", codigo)
+        self.assertIn("Evidencia cartográfica", codigo)
+        self.assertIn("Centro del análisis", codigo)
+        self.assertIn("mapa-cabecera", codigo)
+        self.assertIn("Resultado de la preevaluación", codigo)
+        self.assertIn("Estadísticas del área", codigo)
+        self.assertIn("Gráfica vinculada al mapa", codigo)
+        self.assertIn("mostrar_grafica_contextual_dashboard", codigo)
+        self.assertIn("resolver_capa_contextual", codigo)
+        self.assertIn("crear_grafica_serie_barras", codigo)
         self.assertIn("mostrar_graficas_dashboard", codigo)
+        self.assertIn("crear_grafica_barras_color", codigo)
+        self.assertIn("st.altair_chart", codigo)
+        self.assertNotIn("st.line_chart", codigo)
+        self.assertNotIn('"tipo": "lineas"', codigo)
+        self.assertIn("Deforestación por año", codigo)
+        self.assertIn("Hectáreas clasificadas anualmente como deforestación", codigo)
+        self.assertIn("COLORES_FUENTES", codigo)
+        self.assertIn('"JRC TMF": "#1F8A70"', codigo)
+        self.assertIn('"Hansen GFC": "#E76F51"', codigo)
+        self.assertIn('"ESRI LULC": "#3A7CA5"', codigo)
+        self.assertIn('"GEDI": "#7A5195"', codigo)
+        self.assertIn('"NDVI": "#9BBF30"', codigo)
+        self.assertIn('text=alt.Text("Etiqueta:N")', codigo)
         self.assertIn("Aporte de las fuentes al índice", codigo)
         self.assertIn("Superficie con indicios", codigo)
         self.assertIn("Relación entre fragmentos", codigo)
@@ -116,6 +143,23 @@ class ModosInterfazTests(unittest.TestCase):
         self.assertIn('["Resumen"]', codigo)
         self.assertNotIn("mostrar_flujo(2)", codigo)
         self.assertNotIn("Ver detalles del análisis · opcional", codigo)
+
+    def test_modelo_html_conserva_el_analisis_y_declara_su_identidad(self):
+        portada = Path("app.py").read_text(encoding="utf-8")
+        visor = Path("app_experiencia.py").read_text(encoding="utf-8")
+
+        self.assertIn("mostrar_navegacion", portada)
+        self.assertIn("mostrar_heroe", portada)
+        self.assertIn("Visor CHCP", portada)
+        self.assertIn("Google Earth Engine", portada)
+        self.assertIn("WGS 84 · EPSG:4326", portada)
+        self.assertIn("#0a4393", portada.lower())
+        self.assertIn("#77cc09", portada.lower())
+        self.assertIn('APP_VERSION = "UX-5.0.0-PORTAL-MODELO"', visor)
+        self.assertIn("st.columns([2.55, 1]", visor)
+        self.assertNotIn('st.markdown("### Visor cartográfico")', visor)
+        for fuente in ("JRC", "Hansen", "ESRI", "GEDI", "NDVI"):
+            self.assertIn(fuente, visor)
 
     def test_subcuenca_se_recorta_a_la_cuenca(self):
         geometria = GeometriaPrueba()
